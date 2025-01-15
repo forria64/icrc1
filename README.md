@@ -34,8 +34,9 @@ python3 helper.py
   ```
 
 FEATURES
--ICRC-1 TOKEN UP TO STANDARD SPECIFICATIONS
--MODULAR SYSTEM TESTING WITH PYTHON
+
+- ICRC-1 TOKEN UP TO STANDARD SPECIFICATIONS
+- MODULAR SYSTEM TESTING WITH PYTHON
 
 ## Funding
 This source code was forked from a library that was initially incentivized by [ICDevs](https://icdevs.org/). You can view more about the bounty on the [forum](https://forum.dfinity.org/t/completed-icdevs-org-bounty-26-icrc-1-motoko-up-to-10k/14868/54) or [website](https://icdevs.org/bounties/2022/08/14/ICRC-1-Motoko.html). The bounty was funded by The ICDevs.org community and the DFINITY Foundation and the award was paid to [@NatLabs](https://github.com/NatLabs). If you use this source code or the library it was forked from and gain value from it, please consider a [donation](https://icdevs.org/donations.html) to ICDevs.
