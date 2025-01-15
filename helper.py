@@ -1,0 +1,176 @@
+# helper.py
+import json
+import os
+import subprocess
+from pathlib import Path
+
+# Optional ANSI color codes
+COLOR_RESET = "\033[0m"
+COLOR_GREEN = "\033[32m"
+COLOR_BOLD = "\033[1m"
+COLOR_RED = "\033[31m"
+COLOR_YELLOW = "\033[33m"
+COLOR_CYAN = "\033[36m"
+
+def load_dfx_json():
+    try:
+        with open('dfx.json', 'r') as file:
+            return json.load(file)
+    except FileNotFoundError:
+        print(f"\n{COLOR_BOLD}WARNING: 'dfx.json' FILE NOT FOUND. ENSURE IT EXISTS IN THE PROJECT ROOT.{COLOR_RESET}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"\n{COLOR_BOLD}WARNING: FAILED TO PARSE 'dfx.json'. DETAILS: {e}{COLOR_RESET}")
+        return None
+
+def find_template_files(canisters):
+    args_dir = Path('./args')  # Relative path to args directory
+    templates = {}
+
+    if not args_dir.exists():
+        print(f"\n{COLOR_BOLD}WARNING: 'args' DIRECTORY NOT FOUND.{COLOR_RESET}")
+        return templates
+
+    for canister_name in canisters.keys():
+        template_path = args_dir / f"{canister_name}.template"
+        if template_path.exists():
+            templates[canister_name] = os.path.relpath(template_path, start=Path.cwd())
+
+    return templates
+
+def list_test_scripts():
+    tests_dir = Path('./tests')
+    scripts = []
+
+    if not tests_dir.exists():
+        print(f"\n{COLOR_BOLD}WARNING: 'tests' DIRECTORY NOT FOUND.{COLOR_RESET}")
+        return scripts
+
+    for script in tests_dir.glob('*.py'):
+        scripts.append(script.name)
+
+    return scripts
+
+def main_menu(test_scripts):
+    print(f"{COLOR_BOLD}\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n")
+    print("░░░░░░░ ░░░░░░  ░░░░░░  ░░░░░░  ░░  ░░░░░  ░  ░░░░░░░")
+    print("▒▒     ▒▒    ▒▒ ▒▒   ▒▒ ▒▒   ▒▒ ▒▒ ▒▒   ▒▒ ▒  ▒▒      ")
+    print("▒▒▒▒▒  ▒▒    ▒▒ ▒▒▒▒▒▒  ▒▒▒▒▒▒  ▒▒ ▒▒▒▒▒▒▒    ▒▒▒▒▒▒▒")
+    print("▓▓     ▓▓    ▓▓ ▓▓   ▓▓ ▓▓   ▓▓ ▓▓ ▓▓   ▓▓         ▓▓")
+    print("██      ██████  ██   ██ ██   ██ ██ ██   ██    ███████")
+    print("     ______  ______  _______   ______           __   ")
+    print("    |       /       |         /               _/     ")
+    print("      ▓▓▓▓▓▓  ▓▓▓▓▓▓  ▓▓▓▓▓▓▓   ▓▓▓▓▓▓       |   ▓▓  ")
+    print("      | ▓▓ | ▓▓    ▓▓ ▓▓__| ▓▓ ▓▓    ▓▓______  ▓▓▓▓  ")
+    print("      | ▓▓ | ▓▓     | ▓▓    ▓▓ ▓▓     |        | ▓▓  ")
+    print("      | ▓▓ | ▓▓   __| ▓▓▓▓▓▓▓  ▓▓   __  ▓▓▓▓▓▓ | ▓▓  ")
+    print("     _| ▓▓_| ▓▓__/    ▓▓  | ▓▓ ▓▓__/          _| ▓▓_ ")
+    print("    |   ▓▓   ▓▓    ▓▓ ▓▓  | ▓▓ ▓▓    ▓▓      |   ▓▓  ")
+    print("      ▓▓▓▓▓▓  ▓▓▓▓▓▓  ▓▓    ▓▓  ▓▓▓▓▓▓         ▓▓▓▓▓▓")
+    print(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~v1.0-alpha\n{COLOR_RESET}")
+
+    print(f"{COLOR_BOLD}TEST SCRIPTS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>{COLOR_RESET}\n")
+    if test_scripts:
+        for idx, script in enumerate(test_scripts, start=1):
+            print(f"{COLOR_GREEN}{idx}. {script}{COLOR_RESET}")
+    else:
+        print(f"{COLOR_BOLD}ERROR: NO TEST SCRIPTS AVAILABLE.{COLOR_RESET}")
+
+    print(f"\n{COLOR_BOLD}0. Exit{COLOR_RESET}")
+    print(f"{COLOR_BOLD}^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^{COLOR_RESET}")
+
+    while True:
+        try:
+            choice = int(input(f"{COLOR_BOLD}Select a test script by number: {COLOR_RESET}"))
+            if 0 <= choice <= len(test_scripts):
+                if choice == 0:
+                    return None
+                return test_scripts[choice - 1]
+            else:
+                print(f"{COLOR_RED}Invalid choice. Try again.{COLOR_RESET}")
+        except ValueError:
+            print(f"{COLOR_RED}Please enter a valid number.{COLOR_RESET}")
+
+def canister_selection(canisters, templates, error_message=None):
+    print(f"\n{COLOR_BOLD}AVAILABLE CANISTERS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>{COLOR_RESET}\n")
+    if error_message:
+        print(f"{COLOR_RED}{error_message}{COLOR_RESET}\n")
+    else:
+        for idx, (name, info) in enumerate(canisters.items(), start=1):
+            template_path = templates.get(name, f"{COLOR_BOLD}{COLOR_RED}NO TEMPLATE FILE FOUND{COLOR_RESET}")
+            print(f"{COLOR_GREEN}{idx}. {name}{COLOR_RESET}")
+            print(f"{COLOR_BOLD}{COLOR_YELLOW}   Info:{COLOR_RESET}")
+            for key, value in info.items():
+                print(f"      {COLOR_BOLD}{COLOR_YELLOW}{key}:{COLOR_RESET} {value}")
+            print(f"{COLOR_BOLD}{COLOR_YELLOW}   Template Path: {COLOR_RESET}{template_path}\n")
+    print(f"{COLOR_BOLD}0. Abort{COLOR_RESET}")
+    print(f"{COLOR_BOLD}^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^{COLOR_RESET}")
+
+    while True:
+        try:
+            choice = int(input(f"{COLOR_BOLD}Select a canister by number: {COLOR_RESET}"))
+            if choice == 0:
+                return None
+            if 1 <= choice <= len(canisters):
+                selected_canister = list(canisters.keys())[choice - 1]
+                return selected_canister
+            else:
+                print(f"{COLOR_RED}Invalid choice. Try again.{COLOR_RESET}")
+        except ValueError:
+            print(f"{COLOR_RED}Please enter a valid number.{COLOR_RESET}")
+
+def main():
+    while True:
+        # List available test scripts
+        test_scripts = list_test_scripts()
+
+        # Main Menu
+        selected_script = main_menu(test_scripts)
+        if selected_script is None:
+            print(f"{COLOR_BOLD}Exiting...{COLOR_RESET}")
+            break
+
+        # CANISTER SELECTION LOGIC
+        dfx_data = load_dfx_json()
+        if dfx_data is None:
+            selected_canister = canister_selection({}, {}, "ERROR: NO CANISTERS FOUND IN DFX.JSON.")
+            if selected_canister is None:
+                print(f"\n{COLOR_BOLD}{COLOR_YELLOW}Returning to main menu...{COLOR_RESET}")
+                continue
+
+        canisters = dfx_data.get("canisters", {})
+        if not canisters:
+            selected_canister = canister_selection({}, {}, "ERROR: NO CANISTERS FOUND IN DFX.JSON.")
+            if selected_canister is None:
+                print(f"\n{COLOR_BOLD}{COLOR_YELLOW}Returning to main menu...{COLOR_RESET}")
+                continue
+
+        templates = find_template_files(canisters)
+        selected_canister = canister_selection(canisters, templates)
+
+        if selected_canister is None:
+            print(f"\n{COLOR_BOLD}{COLOR_YELLOW}Returning to main menu...{COLOR_RESET}")
+            continue
+
+        # TEST LOGIC
+        canister_info = {
+            "name": selected_canister,
+            "info": canisters[selected_canister],
+            "template_path": str(templates.get(selected_canister, None))
+        }
+        try:
+            result = subprocess.run(
+                ["python3", f"tests/{selected_script}", json.dumps(canister_info)],
+                check=True,  # Raises a CalledProcessError if the command exits with a non-zero status
+                text=True
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"\n{COLOR_BOLD}ERROR: FAILED TO EXECUTE {selected_script}. DETAILS:\n{e}{COLOR_RESET}")
+        except Exception as e:
+            print(f"\n{COLOR_BOLD}UNEXPECTED ERROR OCCURRED. DETAILS: {e}{COLOR_RESET}")
+
+        print(f"\n{COLOR_BOLD}{COLOR_YELLOW}Returning to main menu...{COLOR_RESET}")
+
+if __name__ == "__main__":
+    main()
+

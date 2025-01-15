@@ -3,7 +3,7 @@
     "canisters": {
         "icrc1": {
             "type": "motoko",
-            "main": "src/ICRC1/Canisters/Token.mo"
+            "main": "src/icrc1/Canisters/Token.mo"
         }
     },
     "defaults": {

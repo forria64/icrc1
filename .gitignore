@@ -13,4 +13,9 @@ src/declarations/
 node_modules/
 src/*/dist/
 Cargo.lock
-args
+*.log
+__pycache__/
+*.pyc
+
+.tmp_args
+.logs
