@@ -1,19 +1,16 @@
-# Various IDEs and Editors
+.dfx/
+target/
+node_modules/
+src/declarations/
+.env
 .vscode/
 .idea/
 **/*~
-
-# Mac OSX temporary files
 .DS_Store
 **/.DS_Store
-
-# dfx temporary files
-.dfx/
 .vessel/
 .mops/
-
-# frontend code
 node_modules/
-dist/
-
+src/*/dist/
 Cargo.lock
+args
