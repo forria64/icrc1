@@ -36,8 +36,8 @@ def run_command(command, desc=None):
         command (str): The shell command to execute.
         desc (str): Optional description to display before executing the command.
 
-    Raises:
-        subprocess.CalledProcessError: If the command fails with a non-zero exit code.
+    Returns:
+        bool: True if the command succeeds, False otherwise.
     """
     if desc:
         print(f"\n{COLOR_BOLD}==== {desc} ===={COLOR_RESET}\n")
@@ -57,11 +57,13 @@ def run_command(command, desc=None):
 
         if return_code != 0:
             print(f"{COLOR_BOLD}COMMAND FAILED WITH RETURN CODE {return_code}{COLOR_RESET}")
-            raise subprocess.CalledProcessError(return_code, command)
+            return False  # Indicate failure
+        return True  # Indicate success
 
-    except subprocess.CalledProcessError as e:
-        print(f"{COLOR_BOLD}ERROR: COULDN'T EXECUTE COMMAND\n{e}{COLOR_RESET}")
-        exit(1)
+    except Exception as e:
+        print(f"{COLOR_BOLD}UNEXPECTED ERROR OCCURRED: {e}{COLOR_RESET}")
+        return False
+
 
 def validate_output(test_desc, actual, expected, counters):
     """
@@ -130,18 +132,48 @@ def write_init_args(template_path, variables):
 
 def deploy_canister(canister_id, argument_file=None):
     """
-    Creates, builds, and installs a single canister with an optional init argument.
+    Deploys a canister by creating, building, and installing it.
+    Cleans up any changes if a step fails.
+
+    Args:
+        canister_id (str): The name or ID of the canister to deploy.
+        argument_file (str, optional): Path to the initialization arguments file.
+
+    Returns:
+        bool: True if deployment succeeds, False otherwise.
     """
-    run_command(f"dfx canister create {canister_id}", desc=f"Create canister {canister_id}")
-    run_command(f"dfx build {canister_id}", desc=f"Build canister {canister_id}")
+    def cleanup():
+        """Cleanup canister by stopping and deleting it."""
+        print(f"{COLOR_YELLOW}Cleaning up canister '{canister_id}'...{COLOR_RESET}")
+        run_command(f"dfx canister stop {canister_id}", desc=f"Stop canister {canister_id}")
+        run_command(f"dfx canister delete {canister_id}", desc=f"Delete canister {canister_id}")
 
-    if argument_file:
-        cmd = f'dfx canister install {canister_id} --argument "$(cat {argument_file})"'
-    else:
-        cmd = f'dfx canister install {canister_id}'
+    # Create the canister
+    if not run_command(f"dfx canister create {canister_id}", desc=f"Create canister {canister_id}"):
+        cleanup()
+        return False
 
-    run_command(cmd, desc=f"Install canister {canister_id}")
-    print(f"{COLOR_RESET}Installed canister '{canister_id}' successfully.{COLOR_RESET}")
+    # Build the canister
+    if not run_command(f"dfx build {canister_id}", desc=f"Build canister {canister_id}"):
+        cleanup()
+        return False
+
+    # Install the canister
+    install_command = (
+        f'dfx canister install {canister_id} --argument "$(cat {argument_file})"'
+        if argument_file else f"dfx canister install {canister_id}"
+    )
+    if not run_command(install_command, desc=f"Install canister {canister_id}"):
+        cleanup()
+        return False
+
+    # If all steps succeed
+    print(f"{COLOR_GREEN}Canister '{canister_id}' deployed successfully!{COLOR_RESET}")
+    return True
+
+
+
+
 
 def main():
     if len(sys.argv) != 2:
@@ -167,9 +199,10 @@ def main():
         
         print(f"\n{COLOR_BOLD}{COLOR_BLINK}<<< SETTING UP TESTING ENVIRONMENT >>>{COLOR_RESET}\n")
         
-        #PHASE 1 GETTING INFO AND CONFIGURING NECESSARY IDENTITIES
+        #PHASE 1 GETTING ENVIRONMENT INFO AND CONFIGURING NECESSARY IDENTITIES
         owner_principal = get_principal()
         selected_canister_info = all_canisters.get(selected_canister, {})
+        
         #PHASE 2 WRITING INITIALIZATION ARGUMENTS FROM TEMPLATE
         template_path = selected_canister_info.get("template_path")
         if not template_path or not os.path.exists(template_path):
@@ -182,16 +215,18 @@ def main():
         
         
         print(f"\n{COLOR_BOLD}{COLOR_BLINK}<<< TESTING STARTED >>>{COLOR_RESET}\n")
-        # Demonstrate run_command and validate_output
         counters = {"total": 0, "success": 0, "failed": 0, "id": 1}
-        test_command = "ls"
-        run_command(test_command, desc="Get info from dfx")
+        
+        # Demonstrate test logic and basic deployment custom function
+        deploy_success = deploy_canister(selected_canister, argument_file=f".tmp_args/{selected_canister}.candid")
         validate_output(
-            test_desc="Validate dfx info output", 
-            actual="Success", 
-            expected="Success", 
+            test_desc="Deploy the selected canister",
+            actual="Success" if deploy_success else "Failed",
+            expected="Success",
             counters=counters
         )
+
+
         # Summary of results
         print(f"\n{COLOR_BOLD}{COLOR_BLINK}<<< TESTING COMPLETED >>>{COLOR_RESET}\n")
         print(f"{COLOR_GREEN}Tests Passed: {counters['success']}{COLOR_RESET}")
@@ -223,53 +258,6 @@ def main():
 #       - To process the selected canister's template:
 #         Use `write_init_args` as demonstrated above.
 # 5. Write your custom logic to handle this data as needed.
-
-    print(f"""{COLOR_BLINK}
-    ######################################################################################################
-    ######################################################################################################
-    ######################################################################################################
-    ##############              ######  ######    ######          ##        ##              ##############
-    ##############  ##########  ##      ####          ##  ##      ######    ##  ##########  ##############
-    ##############  ##      ##  ##  ########  ##  ####  ######      ##    ####  ##      ##  ##############
-    ##############  ##      ##  ####  ########    ######    ##  ######  ######  ##      ##  ##############
-    ##############  ##      ##  ##      ##        ####    ##  ##    ##  ######  ##      ##  ##############
-    ##############  ##########  ##  ##  ####  ########  ##        ####  ######  ##########  ##############
-    ##############              ##  ##  ##  ##  ##  ##  ##  ##  ##  ##  ##  ##              ##############
-    ##############################  ##  ########    ########    ##  ####    ##############################
-    ##############    ##  ####    ########          ####  ##  ####    ##    ##      ##    ################
-    ##################  ##  ######    ####  ########  ####    ############        ####      ##############
-    ##############  ##  ##      ##  ######  ####  ##  ##      ##    ####  ##    ##          ##############
-    ########################  ######    ##  ##        ####    ##          ####  ####  ####  ##############
-    ##############    ##    ##  ##      ##  ####      ####    ##      ##    ######  ######  ##############
-    ##################      ####  ##  ##    ##    ##            ####  ##        ####    ##  ##############
-    ################  ####  ##    ##  ####  ##          ########  ##  ######  ########  ##  ##############
-    ##############  ##  ########        ########    ######    ####    ##        ##########################
-    ##############      ####    ##    ##  ######  ####  ##      ##    ##  ##        ##      ##############
-    ################    ####  ####  ########  ##  ####    ######  ####      ##    ########  ##############
-    ################  ####  ##      ####    ####    ####      ####  ##      ######    ##    ##############
-    ##############    ######  ####      ####  ##      ####  ##  ##      ####        ####    ##############
-    ################    ##      ##      ##          ########          ####    ##    ##  ##################
-    ##############            ##  ################  ####  ##  ######  ##        ##    ##    ##############
-    ##############  ######  ##    ######    ##  ##########  ##      ####    ####  ######    ##############
-    ##############  ##      ####  ############        ##  ######    ##    ######      ##    ##############
-    ##############      ####      ##########  ####  ######    ####  ####    ##            ################
-    ##################    ##########    ##  ##  ##  ####    ##  ##    ##  ##    ####        ##############
-    ##############  ##  ##      ##########  ##      ##    ######  ##  ######  ####      ##  ##############
-    ################  ######  ##    ##      ############  ######        ####  ##    ######################
-    ##############    ##        ##      ##      ##    ##      ##    ##                    ################
-    ##############################            ########  ##        ####      ######    ####  ##############
-    ##############              ##          ####    ####        ##  ######  ##  ##    ##    ##############
-    ##############  ##########  ######    ##  ##      ####  ##  ##########  ######    ##    ##############
-    ##############  ##      ##  ########  ##  ##    ######  ##  ##  ##                ####  ##############
-    ##############  ##      ##  ##      ##    ##  ##  ##  ##############  ####  ##  ##    ################
-    ##############  ##      ##  ##########  ##    ##  ####  ####      ##    ##    ##  ####  ##############
-    ##############  ##########  ##  ##  ##  ##  ####  ##  ######    ##      ##  ####    ##################
-    ##############              ##  ##      ##    ####  ####    ##      ##########    ##    ##############
-    ######################################################################################################
-    ######################################################################################################
-    ######################################################################################################{COLOR_RESET}""")
-    print(f"{COLOR_BOLD}    ################### IF I MADE YOUR LIFE EASIER, BUY ME A COFFEE, LOVE. WOULD YOU?  ###################{COLOR_RESET}")
-    print(f"{COLOR_BOLD}<<< monero:434S3JGKT8Mi5SUAFUfZN6hGDqKQsRM6Ybe5Qk519uu6127RvYDZJPrBg14hXRsxJ6ez3MDYR4FfTS3r7jzuzJQF8rxUMb5 >>>{COLOR_RESET}")
 
 if __name__ == "__main__":
     main()
