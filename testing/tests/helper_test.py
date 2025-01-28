@@ -1,4 +1,5 @@
-# tests/helper_test.py
+# Path: testing/tests/helper_test.py
+
 import json
 import sys
 import os
@@ -12,11 +13,16 @@ COLOR_BOLD = "\033[1m"
 COLOR_YELLOW = "\033[33m"
 COLOR_CYAN = "\033[36m"
 COLOR_RED = "\033[31m"
-COLOR_BLINK ="\033[5m"
+COLOR_BLINK = "\033[5m"
+
+# Because this file lives inside 'testing/tests/',
+# we use '.parent.parent' to go up two levels to the project root if needed
+# or specifically to the 'testing' folder if that's what we want:
+BASE_DIR = Path(__file__).parent.parent
 
 def get_principal():
     """
-    Return the principal of the currently in-use dfx identity.
+    Returns the principal of the currently in-use dfx identity.
     """
     try:
         return subprocess.check_output(
@@ -25,19 +31,19 @@ def get_principal():
             text=True
         ).strip()
     except subprocess.CalledProcessError as e:
-        print(f"{COLOR_BOLD}ERROR: COULDN'T FETCH PRINCIPAL\n{e}{COLOR_RESET}")
+        print(f"{COLOR_BOLD}ERROR: COULD NOT FETCH PRINCIPAL\n{e}{COLOR_RESET}")
         exit(1)
 
 def run_command(command, desc=None):
     """
-    Execute a shell command and stream its output to the terminal with an optional description.
+    Executes a shell command, streaming the output to the console.
 
     Args:
         command (str): The shell command to execute.
-        desc (str): Optional description to display before executing the command.
+        desc (str, optional): Displayed before running the command.
 
     Returns:
-        bool: True if the command succeeds, False otherwise.
+        bool: True if the command exit code is 0; otherwise False.
     """
     if desc:
         print(f"\n{COLOR_BOLD}==== {desc} ===={COLOR_RESET}\n")
@@ -57,59 +63,57 @@ def run_command(command, desc=None):
 
         if return_code != 0:
             print(f"{COLOR_BOLD}COMMAND FAILED WITH RETURN CODE {return_code}{COLOR_RESET}")
-            return False  # Indicate failure
-        return True  # Indicate success
-
+            return False
+        return True
     except Exception as e:
         print(f"{COLOR_BOLD}UNEXPECTED ERROR OCCURRED: {e}{COLOR_RESET}")
         return False
 
-
 def validate_output(test_desc, actual, expected, counters):
     """
-    Validate the output of a test and print the result to the terminal.
+    Validates test results and prints them. Updates a counters dict.
 
     Args:
-        test_desc (str): Description of the test being validated.
-        actual (any): The actual output from the test.
-        expected (any): The expected output to compare against.
-        counters (dict): Dictionary tracking test statistics (total, success, failed, id).
+        test_desc (str): Description of what is being tested.
+        actual (any): The actual result of the test.
+        expected (any): The expected result.
+        counters (dict): Contains 'total', 'success', 'failed', 'id' keys.
     """
     counters['total'] += 1
+    test_id = counters['id']
+
     if actual == expected:
-        print(f"\n{COLOR_GREEN}^^^^^^^^^^^^^^^^^^ TEST {counters['id']} SUCCESSFUL ^^^^^^^^^^^^^^^^^^{COLOR_RESET}")
+        print(f"\n{COLOR_GREEN}^^^^^^^^^^^^^^^^^^ TEST {test_id} SUCCESSFUL ^^^^^^^^^^^^^^^^^^{COLOR_RESET}")
         print(f"{COLOR_GREEN}{test_desc}{COLOR_RESET}")
         print(f"{COLOR_GREEN}========================================================{COLOR_RESET}\n")
         counters['success'] += 1
     else:
-        print(f"\n{COLOR_BOLD}^^^^^^^^^^^^^^^^^^ TEST {counters['id']} FAILED ^^^^^^^^^^^^^^^^^^{COLOR_RESET}")
+        print(f"\n{COLOR_BOLD}^^^^^^^^^^^^^^^^^^ TEST {test_id} FAILED ^^^^^^^^^^^^^^^^^^{COLOR_RESET}")
         print(f"{COLOR_BOLD}{test_desc}{COLOR_RESET}")
         print(f"{COLOR_BOLD}Expected: {expected}, Got: {actual}{COLOR_RESET}")
         print(f"{COLOR_BOLD}========================================================{COLOR_RESET}\n")
         counters['failed'] += 1
 
+    counters['id'] += 1
+
 def write_init_args(template_path, variables):
     """
-    Replaces variables in the template, prints the result, and writes it to .tmp_args/<canister_name>.candid.
+    Replaces placeholders in the template file and saves the resulting .candid file
+    to 'args/<canister_name>.candid'.
 
     Args:
-        template_path (str): Path to the template file. Must not be None.
-        variables (dict): A dictionary where keys are placeholders to replace (e.g., {key})
-                          and values are their replacements.
-
-    Example:
-        template_path = "args/example.template"
-        variables = {"owner_principal": "abcd-principal-id", "token_name": "MyToken"}
-        This will replace {owner_principal} and {token_name} in the template.
+        template_path (str): Path to the template file (should be in args_templates).
+        variables (dict): A mapping of placeholder -> replacement value.
     """
     if not template_path or not os.path.exists(template_path):
-        print(f"{COLOR_BOLD}ERROR: NO TEMPLATE FILE FOUND{COLOR_RESET}")
+        print(f"{COLOR_BOLD}ERROR: NO TEMPLATE FILE FOUND AT {template_path}{COLOR_RESET}")
         exit(1)
 
     try:
         with open(template_path, 'r') as template_file:
             content = template_file.read()
 
+        # Replace placeholders
         for key, value in variables.items():
             placeholder = f"{{{key}}}"
             content = content.replace(placeholder, value)
@@ -117,10 +121,10 @@ def write_init_args(template_path, variables):
         print(f"{COLOR_BOLD}{COLOR_YELLOW}Processed Template Content:\n{content}{COLOR_RESET}")
 
         canister_name = Path(template_path).stem
-        output_dir = Path(".tmp_args")
-        output_dir.mkdir(exist_ok=True)
-        output_file = output_dir / f"{canister_name}.candid"
+        args_dir = BASE_DIR / 'args'  # old '.tmp_args'
+        args_dir.mkdir(exist_ok=True)
 
+        output_file = args_dir / f"{canister_name}.candid"
         with open(output_file, 'w') as file:
             file.write(content)
 
@@ -132,59 +136,64 @@ def write_init_args(template_path, variables):
 
 def deploy_canister(canister_id, argument_file=None):
     """
-    Deploys a canister by creating, building, and installing it.
-    Cleans up any changes if a step fails.
+    Creates, builds, and installs the canister. Cleans up if anything fails.
 
     Args:
-        canister_id (str): The name or ID of the canister to deploy.
-        argument_file (str, optional): Path to the initialization arguments file.
+        canister_id (str): The name of the canister (matches dfx.json 'canisters' key).
+        argument_file (str, optional): Path to the .candid file for init args.
 
     Returns:
-        bool: True if deployment succeeds, False otherwise.
+        bool: True if deployment succeeded fully, otherwise False.
     """
     def cleanup():
-        """Cleanup canister by stopping and deleting it."""
         print(f"{COLOR_YELLOW}Cleaning up canister '{canister_id}'...{COLOR_RESET}")
         run_command(f"dfx canister stop {canister_id}", desc=f"Stop canister {canister_id}")
         run_command(f"dfx canister delete {canister_id}", desc=f"Delete canister {canister_id}")
 
-    # Create the canister
+    # 1. Create
     if not run_command(f"dfx canister create {canister_id}", desc=f"Create canister {canister_id}"):
         cleanup()
         return False
 
-    # Build the canister
+    # 2. Build
     if not run_command(f"dfx build {canister_id}", desc=f"Build canister {canister_id}"):
         cleanup()
         return False
 
-    # Install the canister
-    install_command = (
-        f'dfx canister install {canister_id} --argument "$(cat {argument_file})"'
-        if argument_file else f"dfx canister install {canister_id}"
-    )
-    if not run_command(install_command, desc=f"Install canister {canister_id}"):
+    # 3. Install
+    if argument_file:
+        install_cmd = f'dfx canister install {canister_id} --argument "$(cat {argument_file})"'
+    else:
+        install_cmd = f"dfx canister install {canister_id}"
+
+    if not run_command(install_cmd, desc=f"Install canister {canister_id}"):
         cleanup()
         return False
 
-    # If all steps succeed
     print(f"{COLOR_GREEN}Canister '{canister_id}' deployed successfully!{COLOR_RESET}")
     return True
 
-
-
-
-
 def main():
+    """
+    Main test script entry point. Expects a single JSON argument
+    with structure:
+       {
+         "canisters": {...},
+         "selected_canister": "...name..."
+       }
+    """
     if len(sys.argv) != 2:
         print(f"{COLOR_RED}Usage: python3 helper_test.py '<canister_info_json>'{COLOR_RESET}")
         sys.exit(1)
 
-    # Parse input JSON and extract canister data
+    # Parse input JSON
     canister_info_json = sys.argv[1]
     canister_info = json.loads(canister_info_json)
+
     all_canisters = canister_info.get("canisters", {})
-    selected_canister = canister_info.get("selected_canister", None)
+    selected_canister = canister_info.get("selected_canister")
+
+    # Show canister info
     print(f"\n{COLOR_BOLD}Received Canister Information:{COLOR_RESET}\n")
     print(f"{COLOR_BOLD}{COLOR_YELLOW}All Canisters:{COLOR_RESET}")
     for name, info in all_canisters.items():
@@ -192,33 +201,30 @@ def main():
         for key, value in info.items():
             print(f"    {COLOR_YELLOW}{key}:{COLOR_RESET} {value}")
         print()
+
     print(f"{COLOR_RED}Selected Canister: {selected_canister}{COLOR_RESET}\n")
 
     if selected_canister:
-        #CUSTOM TEST LOGIC
-        
-        print(f"\n{COLOR_BOLD}{COLOR_BLINK}<<< SETTING UP TESTING ENVIRONMENT >>>{COLOR_RESET}\n")
-        
-        #PHASE 1 GETTING ENVIRONMENT INFO AND CONFIGURING NECESSARY IDENTITIES
+        # PHASE 1: Retrieve environment info
         owner_principal = get_principal()
-        selected_canister_info = all_canisters.get(selected_canister, {})
-        
-        #PHASE 2 WRITING INITIALIZATION ARGUMENTS FROM TEMPLATE
-        template_path = selected_canister_info.get("template_path")
+
+        # PHASE 2: Write init args from template
+        selected_info = all_canisters.get(selected_canister, {})
+        template_path = selected_info.get("template_path")
+
         if not template_path or not os.path.exists(template_path):
-            print(f"{COLOR_BOLD}ERROR: NO TEMPLATE FILE FOUND{COLOR_RESET}")
+            print(f"{COLOR_BOLD}ERROR: NO TEMPLATE FILE FOUND FOR {selected_canister}{COLOR_RESET}")
             sys.exit(1)
+
         variables = {"owner_principal": owner_principal}
         write_init_args(template_path, variables)
-        
-        print(f"\n{COLOR_BOLD}{COLOR_BLINK}<<< TESTING ENVIRONMENT SET UP >>>{COLOR_RESET}\n")
-        
-        
-        print(f"\n{COLOR_BOLD}{COLOR_BLINK}<<< TESTING STARTED >>>{COLOR_RESET}\n")
+
+        # PHASE 3: Deployment test
         counters = {"total": 0, "success": 0, "failed": 0, "id": 1}
-        
-        # Demonstrate test logic and basic deployment custom function
-        deploy_success = deploy_canister(selected_canister, argument_file=f".tmp_args/{selected_canister}.candid")
+        arg_file = BASE_DIR / 'args' / f"{Path(template_path).stem}.candid"
+
+        deploy_success = deploy_canister(selected_canister, argument_file=str(arg_file))
+
         validate_output(
             test_desc="Deploy the selected canister",
             actual="Success" if deploy_success else "Failed",
@@ -226,38 +232,11 @@ def main():
             counters=counters
         )
 
-
-        # Summary of results
+        # Final summary
         print(f"\n{COLOR_BOLD}{COLOR_BLINK}<<< TESTING COMPLETED >>>{COLOR_RESET}\n")
         print(f"{COLOR_GREEN}Tests Passed: {counters['success']}{COLOR_RESET}")
         print(f"{COLOR_RED}Tests Failed: {counters['failed']}{COLOR_RESET}")
         print(f"{COLOR_BOLD}{COLOR_YELLOW}Total Tests: {counters['total']}{COLOR_RESET}")
-
-
-# HOWDY THERE, SPACE COWBOYS !!!
-# =====================================
-# If you're looking to add your custom test scripts to the /tests directory,
-# you can process the arguments passed from helper.py as follows:
-# 1. Expect the script to be called with a single JSON string argument.
-# 2. Use `json.loads()` to parse the JSON string into a Python dictionary.
-# 3. The dictionary will have the following structure:
-#    {
-#        "canisters": {
-#            "<canister_name>": {
-#                "type": "<type_of_canister>",    # Type of the canister (e.g., "motoko", "rust", etc.)
-#                "main": "<entry_point>",         # Entry point file for the canister.
-#            },
-#            ...
-#        },
-#        "selected_canister": "<name_of_selected_canister>"  # The name of the canister selected by the user.
-#    }
-# 4. You can access all canisters and the selected canister for further processing.
-#    For example:
-#       - To get the entry point of the selected canister:
-#         `canisters["selected_canister"]["main"]`
-#       - To process the selected canister's template:
-#         Use `write_init_args` as demonstrated above.
-# 5. Write your custom logic to handle this data as needed.
 
 if __name__ == "__main__":
     main()

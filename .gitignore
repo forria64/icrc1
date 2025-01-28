@@ -10,12 +10,11 @@ src/declarations/
 **/.DS_Store
 .vessel/
 .mops/
-node_modules/
 src/*/dist/
 Cargo.lock
 *.log
 __pycache__/
 *.pyc
 
-.tmp_args
-.logs
+testing/args
+testing/logs
