@@ -15,6 +15,7 @@ Cargo.lock
 *.log
 __pycache__/
 *.pyc
+package-lock.json
 
 testing/args
 testing/logs
